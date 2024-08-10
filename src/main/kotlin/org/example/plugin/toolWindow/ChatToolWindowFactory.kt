@@ -7,11 +7,13 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
 import org.example.plugin.components.ChatPanel
+import org.example.plugin.services.MessageSender
 
-class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
+
+class ChatToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val chatPanel = project.service<ChatPanel>()
-        val contentFactory = ContentFactory.getInstance()  // 使用 getInstance() 方法
+        val chatPanel = ChatPanel()
+        val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(chatPanel.content, "", false)
         toolWindow.contentManager.addContent(content)
     }
