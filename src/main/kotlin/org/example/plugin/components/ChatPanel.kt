@@ -1,122 +1,90 @@
-package org.example.plugin.components
-
-import org.example.plugin.services.MessageSender
+import com.intellij.ui.components.JBPanel
+import net.miginfocom.swing.MigLayout
 import org.example.plugin.listeners.ChatKeyListener
-import javax.swing.*
+import org.example.plugin.services.MessageSender
 import java.awt.*
-
 import javax.swing.*
-import java.awt.*
-import java.awt.image.BufferedImage
 
-import javax.swing.*
-import java.awt.*
+class ChatPanel : JBPanel<ChatPanel>(MigLayout("fill, wrap 1", "[grow, fill]", "[grow, fill]0[]")) {
 
-class ChatPanel : JPanel() {
-
-    private val mainPanel: JPanel = JPanel(BorderLayout())
-    private val chatContainer: JPanel = JPanel()
-    private val chatScrollPane: JScrollPane = JScrollPane(chatContainer)
-    private val inputField: JTextField = JTextField()
-    private val sendButton: JButton = JButton("发送")
+    private val chatUI = ChatUI()
     private lateinit var messageSender: MessageSender
 
     init {
-        chatContainer.layout = BoxLayout(chatContainer, BoxLayout.Y_AXIS)
-        chatContainer.background = Color(245, 245, 245) // 更加柔和的背景颜色
-
-        chatScrollPane.verticalScrollBar.unitIncrement = 16
-        chatScrollPane.horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-
-        val inputPanel = JPanel(BorderLayout())
-        inputPanel.background = Color(230, 230, 230) // 输入面板的背景颜色
-        inputField.font = Font("Arial", Font.PLAIN, 14) // 更改字体
-        inputPanel.add(inputField, BorderLayout.CENTER)
-        sendButton.background = Color(30, 144, 255) // 按钮的背景颜色
-        sendButton.foreground = Color.WHITE // 按钮文字的颜色
-        inputPanel.add(sendButton, BorderLayout.EAST)
-
-        mainPanel.add(chatScrollPane, BorderLayout.CENTER)
-        mainPanel.add(inputPanel, BorderLayout.SOUTH)
-
-        // 初始化 MessageSender
-        messageSender = MessageSender(this, inputField)
-
-        // 为发送按钮添加点击事件监听器
-        sendButton.addActionListener {
-            messageSender.sendMessage()
-        }
-
-        // 为输入框添加键盘事件监听器，监听Enter键
-        inputField.addKeyListener(ChatKeyListener(messageSender))
+        setupUI()
+        setupEventListeners()
     }
 
-    fun addMessageBubble(text: String, isUser: Boolean) {
-        val messagePanel = JPanel()
-        messagePanel.layout = BoxLayout(messagePanel, BoxLayout.X_AXIS)
-        messagePanel.background = if (isUser) Color.LIGHT_GRAY else Color.CYAN
-        messagePanel.border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
+    private fun setupUI() {
+        add(chatUI.chatScrollPane, "grow, push")
+        add(chatUI.inputPanel, "dock south")
 
-        // 使用 HTML 来自动处理换行
-        val messageLabel = JLabel("<html>${text.replace("\n", "<br>")}</html>")
-        messageLabel.foreground = Color.BLACK
-        messageLabel.isOpaque = true
-        messageLabel.border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        messageSender = MessageSender(this, chatUI.inputField)
+    }
 
-        // 限制消息气泡的最大宽度
-        val maxWidth = 300 // 设置气泡的最大宽度，单位为像素
-        messageLabel.maximumSize = Dimension(maxWidth, Int.MAX_VALUE)
-        messageLabel.preferredSize = Dimension(maxWidth, messageLabel.preferredSize.height)
-        messageLabel.size = Dimension(maxWidth, messageLabel.preferredSize.height)
+    private fun setupEventListeners() {
+        chatUI.sendButton.addActionListener { messageSender.sendMessage() }
+        chatUI.inputField.addKeyListener(ChatKeyListener(messageSender))
+    }
 
-        if (isUser) {
-            messagePanel.add(Box.createHorizontalGlue())
+    fun addMessageBubble(text: String, isUser: Boolean): JBPanel<JBPanel<*>> {
+        val messagePanel = createMessagePanel(isUser)
+        val messageArea = createMessageArea(text, isUser)
+
+        messagePanel.add(messageArea, "growx")
+        chatUI.chatContainer.add(messagePanel, "wrap, growx, pushx")
+
+        refreshChatUI(messageArea)
+        scrollToBottom()
+
+        return messagePanel
+    }
+
+    private fun scrollToBottom() {
+        SwingUtilities.invokeLater {
+            val verticalScrollBar = chatUI.chatScrollPane.verticalScrollBar
+            verticalScrollBar.value = verticalScrollBar.maximum
         }
-        messagePanel.add(messageLabel)
+    }
 
-        chatContainer.add(messagePanel)
-        chatContainer.add(Box.createVerticalStrut(10))
+    private fun createMessagePanel(isUser: Boolean): JBPanel<JBPanel<*>> {
+        return JBPanel<JBPanel<*>>().apply {
+            layout = MigLayout("fill, insets 0", if (isUser) "[right]" else "[left]", "[]")
+            background = Color(250, 250, 250)
+        }
+    }
+
+    private fun createMessageArea(text: String, isUser: Boolean): JTextArea {
+        return JTextArea(text).apply {
+            isEditable = false
+            lineWrap = true
+            wrapStyleWord = true
+            font = Font("Microsoft YaHei", Font.PLAIN, 14)
+            background = if (isUser) Color(230, 230, 230) else Color(52, 152, 219)
+            foreground = if (isUser) Color(60, 60, 60) else Color.WHITE
+            border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
+            maximumSize = Dimension(chatUI.chatScrollPane.width - 20, Int.MAX_VALUE)
+        }
+    }
+
+    fun updateMessageBubble(messagePanel: JBPanel<JBPanel<*>>, newText: String) {
+        // 假设messagePanel的第一个组件是JTextArea
+        val messageArea = messagePanel.getComponent(0) as JTextArea
+        messageArea.text = newText
+        messageArea.revalidate()
+        messageArea.repaint()
+    }
+
+    private fun refreshChatUI(messageArea: JTextArea) {
+        messageArea.preferredSize = Dimension(chatUI.chatScrollPane.width - 20, messageArea.preferredSize.height)
+        chatUI.chatContainer.revalidate()
+        chatUI.chatContainer.repaint()
 
         SwingUtilities.invokeLater {
-            chatScrollPane.verticalScrollBar.value = chatScrollPane.verticalScrollBar.maximum
+            messageArea.preferredSize = Dimension(chatUI.chatScrollPane.width - 20, messageArea.preferredSize.height)
+            messageArea.revalidate()
         }
     }
-
-
-    fun updateLastMessageBubble(text: String, isUser: Boolean) {
-        // 获取最后一个消息气泡面板（JPanel）
-        val lastComponent = chatContainer.getComponent(chatContainer.componentCount - 2)
-        if (lastComponent is JPanel) {
-            // 获取消息气泡面板中的第一个组件（假设是 JLabel）
-            val messagePanel = lastComponent.getComponent(0) as? JPanel
-            if (messagePanel != null) {
-                val messageLabel = messagePanel.getComponent(0) as? JLabel
-                if (messageLabel != null) {
-                    messageLabel.text = text
-
-                    SwingUtilities.invokeLater {
-                        chatScrollPane.verticalScrollBar.value = chatScrollPane.verticalScrollBar.maximum
-                    }
-                }
-            }
-        }
-    }
-
-
-    // 创建圆形头像图标的方法
-    private fun createAvatarIcon(color: Color, size: Int): Icon {
-        val image = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
-        val g = image.createGraphics()
-        g.color = color
-        g.fillOval(0, 0, size, size)
-        g.dispose()
-        return ImageIcon(image)
-    }
-
-    val content: JComponent
-        get() = mainPanel
 }
-
-
 
 
