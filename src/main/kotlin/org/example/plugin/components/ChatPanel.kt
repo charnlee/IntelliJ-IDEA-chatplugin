@@ -1,70 +1,90 @@
 import com.intellij.ui.components.JBPanel
+import net.miginfocom.swing.MigLayout
 import org.example.plugin.listeners.ChatKeyListener
 import org.example.plugin.services.MessageSender
 import java.awt.*
 import javax.swing.*
 
-class ChatPanel : JBPanel<ChatPanel>(BorderLayout()) {
+class ChatPanel : JBPanel<ChatPanel>(MigLayout("fill, wrap 1", "[grow, fill]", "[grow, fill]0[]")) {
 
     private val chatUI = ChatUI()
-
     private lateinit var messageSender: MessageSender
 
     init {
-        add(chatUI.chatScrollPane, BorderLayout.CENTER)
-        add(chatUI.inputPanel, BorderLayout.SOUTH)
+        setupUI()
+        setupEventListeners()
+    }
+
+    private fun setupUI() {
+        add(chatUI.chatScrollPane, "grow, push")
+        add(chatUI.inputPanel, "dock south")
 
         messageSender = MessageSender(this, chatUI.inputField)
+    }
 
-        chatUI.sendButton.addActionListener {
-            messageSender.sendMessage()
-        }
-
+    private fun setupEventListeners() {
+        chatUI.sendButton.addActionListener { messageSender.sendMessage() }
         chatUI.inputField.addKeyListener(ChatKeyListener(messageSender))
     }
 
-    fun addMessageBubble(text: String, isUser: Boolean) {
-        val messagePanel = JBPanel<JBPanel<*>>().apply {
-            layout = FlowLayout(if (isUser) FlowLayout.RIGHT else FlowLayout.LEFT).apply {
-                hgap = 0
-                vgap = 0
-            }
+    fun addMessageBubble(text: String, isUser: Boolean): JBPanel<JBPanel<*>> {
+        val messagePanel = createMessagePanel(isUser)
+        val messageArea = createMessageArea(text, isUser)
+
+        messagePanel.add(messageArea, "growx")
+        chatUI.chatContainer.add(messagePanel, "wrap, growx, pushx")
+
+        refreshChatUI(messageArea)
+        scrollToBottom()
+
+        return messagePanel
+    }
+
+    private fun scrollToBottom() {
+        SwingUtilities.invokeLater {
+            val verticalScrollBar = chatUI.chatScrollPane.verticalScrollBar
+            verticalScrollBar.value = verticalScrollBar.maximum
+        }
+    }
+
+    private fun createMessagePanel(isUser: Boolean): JBPanel<JBPanel<*>> {
+        return JBPanel<JBPanel<*>>().apply {
+            layout = MigLayout("fill, insets 0", if (isUser) "[right]" else "[left]", "[]")
             background = Color(250, 250, 250)
         }
+    }
 
-        val messageArea = JTextArea(text).apply {
+    private fun createMessageArea(text: String, isUser: Boolean): JTextArea {
+        return JTextArea(text).apply {
             isEditable = false
             lineWrap = true
             wrapStyleWord = true
-            font = Font("Segoe UI", Font.PLAIN, 14)
+            font = Font("Microsoft YaHei", Font.PLAIN, 14)
             background = if (isUser) Color(230, 230, 230) else Color(52, 152, 219)
             foreground = if (isUser) Color(60, 60, 60) else Color.WHITE
             border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
-//            preferredSize = Dimension(chatUI.chatScrollPane.width - 20, 0) // Adjust based on padding
-//            maximumSize = Dimension(400, Int.MAX_VALUE)
+            maximumSize = Dimension(chatUI.chatScrollPane.width - 20, Int.MAX_VALUE)
         }
-        // 设置最大宽度约束
-        messageArea.maximumSize = Dimension(chatUI.chatScrollPane.width - 20, Int.MAX_VALUE)
+    }
 
-        if (isUser) {
-            messagePanel.add(Box.createHorizontalGlue())
-        }
-        messagePanel.add(messageArea)
+    fun updateMessageBubble(messagePanel: JBPanel<JBPanel<*>>, newText: String) {
+        // 假设messagePanel的第一个组件是JTextArea
+        val messageArea = messagePanel.getComponent(0) as JTextArea
+        messageArea.text = newText
+        messageArea.revalidate()
+        messageArea.repaint()
+    }
 
-        chatUI.chatContainer.add(Box.createVerticalStrut(10))
-        chatUI.chatContainer.add(messagePanel)
-
+    private fun refreshChatUI(messageArea: JTextArea) {
+        messageArea.preferredSize = Dimension(chatUI.chatScrollPane.width - 20, messageArea.preferredSize.height)
         chatUI.chatContainer.revalidate()
         chatUI.chatContainer.repaint()
 
-        SwingUtilities.invokeLater {
-            chatUI.chatScrollPane.verticalScrollBar.value = chatUI.chatScrollPane.verticalScrollBar.maximum
-        }
-//        // 更新 JTextArea 的宽度以匹配 chatScrollPane 的宽度
         SwingUtilities.invokeLater {
             messageArea.preferredSize = Dimension(chatUI.chatScrollPane.width - 20, messageArea.preferredSize.height)
             messageArea.revalidate()
         }
     }
 }
+
 

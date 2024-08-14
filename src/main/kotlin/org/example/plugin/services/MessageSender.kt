@@ -3,11 +3,10 @@ package org.example.plugin.services
 
 import com.intellij.ui.components.JBTextField
 import ChatPanel
+import com.intellij.ui.components.JBPanel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
 class MessageSender(private val chatPanel: ChatPanel, private val inputField: JBTextField) {
@@ -23,17 +22,26 @@ class MessageSender(private val chatPanel: ChatPanel, private val inputField: JB
 
             // 使用协程在后台线程中处理流式响应
             CoroutineScope(Dispatchers.IO).launch {
+                var responsePanel: JBPanel<JBPanel<*>>? = null
                 val responseBuilder = StringBuilder()
 
                 streamingService.streamResponse(
                     message,
                     onTokenReceived = { token ->
-                        responseBuilder.append(token)
+                        SwingUtilities.invokeLater {
+                            if (responsePanel == null) {
+                                // 第一次收到token时创建消息气泡
+                                responsePanel = chatPanel.addMessageBubble("", false)
+                            }
+                            // 将新的token追加到已有的消息气泡中
+                            responseBuilder.append(token)
+                            chatPanel.updateMessageBubble(responsePanel!!, responseBuilder.toString())
+                        }
                     },
                     onComplete = {
-                        // 完成后在主线程上添加模型的消息气泡
+                        // 完成后，可能需要在主线程上执行一些清理操作
                         SwingUtilities.invokeLater {
-                            chatPanel.addMessageBubble(responseBuilder.toString(), false)
+                            // 可以在此处执行任何完成时的操作（如日志记录或通知）
                         }
                     },
                     onError = { error ->
@@ -46,6 +54,8 @@ class MessageSender(private val chatPanel: ChatPanel, private val inputField: JB
         }
     }
 }
+
+
 
 
 
